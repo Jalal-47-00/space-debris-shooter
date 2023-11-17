@@ -23,17 +23,14 @@ SDL_Rect debris[MAX_DEBRIS];
 TTF_Font* font = NULL;
 int score = 0;
 int gameOver = 0;
-int bulletIndex = 0;
-
+int bulletActive[MAX_BULLETS] = {0};
 SDL_Texture* spaceshipTexture = NULL;
 SDL_Texture* debrisTexture = NULL;
 SDL_Texture* bulletTexture = NULL;
 SDL_Texture* backgroundTexture = NULL;
 SDL_Rect spaceshipRect;
-
 int spaceshipVelocityX = 0;
 int spaceshipVelocityY = 0;
-
 Uint32 next_game_tick = 0;
 
 int initSDL()
@@ -161,9 +158,14 @@ void handleInput(SDL_Event* event)
     if (!gameOver && event->type == SDL_KEYDOWN && event->key.repeat == 0) {
         switch (event->key.keysym.sym) {
             case SDLK_SPACE:
-                bullets[bulletIndex].x = spaceshipRect.x + (SPACESHIP_WIDTH - BULLET_WIDTH) / 2;
-                bullets[bulletIndex].y = spaceshipRect.y - BULLET_HEIGHT;
-                bulletIndex = (bulletIndex + 1) % MAX_BULLETS;
+                for (int i = 0; i < MAX_BULLETS; ++i) {
+                    if (!bulletActive[i]) {
+                        bullets[i].x = spaceshipRect.x + (SPACESHIP_WIDTH - BULLET_WIDTH) / 2;
+                        bullets[i].y = spaceshipRect.y - BULLET_HEIGHT;
+                        bulletActive[i] = 1;
+                        break;
+                    }
+                }
                 break;
         }
     }
@@ -192,24 +194,30 @@ void updateGame()
     }
 
     for (int i = 0; i < MAX_BULLETS; ++i) {
-        if (bullets[i].y >= 0) {
+        if (bulletActive[i]) {
             bullets[i].y -= BULLET_SPEED;
+
+            for (int j = 0; j < MAX_DEBRIS; ++j) {
+                if (debris[j].y <= SCREEN_HEIGHT && SDL_HasIntersection(&bullets[i], &debris[j])) {
+                    bulletActive[i] = 0;
+                    debris[j].w = rand() % 30 + 20;
+                    debris[j].h = debris[j].w;
+                    debris[j].x = rand() % (SCREEN_WIDTH - debris[j].w);
+                    debris[j].y = -rand() % SCREEN_HEIGHT;
+
+                    score++;
+                }
+            }
+
+            if (bullets[i].y < 0) {
+                bulletActive[i] = 0;
+            }
         }
     }
 
     for (int i = 0; i < MAX_DEBRIS; ++i) {
         if (debris[i].y <= SCREEN_HEIGHT) {
             debris[i].y += 2;
-            for (int j = 0; j < MAX_BULLETS; ++j) {
-                if (bullets[j].y >= 0 && SDL_HasIntersection(&bullets[j], &debris[i])) {
-                    debris[i].w = rand() % 30 + 20;
-                    debris[i].h = debris[i].w;
-                    debris[i].x = rand() % (SCREEN_WIDTH - debris[i].w);
-                    debris[i].y = -rand() % SCREEN_HEIGHT;
-
-                    score++;
-                }
-            }
 
             if (SDL_HasIntersection(&spaceshipRect, &debris[i])) {
                 gameOver = 1;
@@ -229,7 +237,7 @@ void render()
     SDL_RenderCopy(renderer, spaceshipTexture, NULL, &spaceshipRect);
 
     for (int i = 0; i < MAX_BULLETS; ++i) {
-        if (bullets[i].y >= 0) {
+        if (bulletActive[i]) {
             SDL_RenderCopy(renderer, bulletTexture, NULL, &bullets[i]);
         }
     }
