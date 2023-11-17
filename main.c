@@ -31,25 +31,23 @@ SDL_Texture* bulletTexture = NULL;
 SDL_Texture* backgroundTexture = NULL;
 SDL_Rect spaceshipRect;
 
-// Variable for smooth spaceship movement
 int spaceshipVelocityX = 0;
 int spaceshipVelocityY = 0;
 
 Uint32 next_game_tick = 0;
 
-int initSDL() {
+int initSDL()
+{
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         printf("SDL initialization failed: %s\n", SDL_GetError());
         return -1;
     }
 
-    // Initialize SDL_image
     if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) {
         printf("SDL_image initialization failed: %s\n", IMG_GetError());
         return -1;
     }
 
-    // Initialize SDL_ttf
     if (TTF_Init() == -1) {
         printf("SDL_ttf initialization failed: %s\n", TTF_GetError());
         return -1;
@@ -74,7 +72,8 @@ int initSDL() {
     return 0;
 }
 
-void loadAssets() {
+void loadAssets()
+{
     SDL_Surface* backgroundSurface = IMG_Load("two.png");
     if (backgroundSurface == NULL) {
         printf("Failed to load background image: %s\n", IMG_GetError());
@@ -139,7 +138,8 @@ void loadAssets() {
     }
 }
 
-void handleInput(SDL_Event* event) {
+void handleInput(SDL_Event* event)
+{
     const Uint8* currentKeyStates = SDL_GetKeyboardState(NULL);
 
     spaceshipVelocityX = 0;
@@ -169,7 +169,8 @@ void handleInput(SDL_Event* event) {
     }
 }
 
-void updateGame() {
+void updateGame()
+{
     if (gameOver) {
         return;
     }
@@ -199,7 +200,6 @@ void updateGame() {
     for (int i = 0; i < MAX_DEBRIS; ++i) {
         if (debris[i].y <= SCREEN_HEIGHT) {
             debris[i].y += 2;
-
             for (int j = 0; j < MAX_BULLETS; ++j) {
                 if (bullets[j].y >= 0 && SDL_HasIntersection(&bullets[j], &debris[i])) {
                     debris[i].w = rand() % 30 + 20;
@@ -223,7 +223,8 @@ void updateGame() {
     }
 }
 
-void render() {
+void render()
+{
     SDL_RenderCopy(renderer, backgroundTexture, NULL, NULL);
     SDL_RenderCopy(renderer, spaceshipTexture, NULL, &spaceshipRect);
 
@@ -266,11 +267,11 @@ void render() {
         SDL_RenderCopy(renderer, gameOverTexture, NULL, &gameOverRect);
         SDL_DestroyTexture(gameOverTexture);
     }
-
     SDL_RenderPresent(renderer);
 }
 
-void closeSDL() {
+void closeSDL()
+{
     TTF_CloseFont(font);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
@@ -283,12 +284,14 @@ void closeSDL() {
     SDL_Quit();
 }
 
-Uint32 time_left(void) {
+Uint32 time_left(void)
+{
     Uint32 now = SDL_GetTicks();
     return (next_game_tick > now) ? next_game_tick - now : 0;
 }
 
-int main(int argc, char* args[]) {
+int main(int argc, char* args[])
+{
     if (initSDL() == -1) {
         return -1;
     }
@@ -306,7 +309,6 @@ int main(int argc, char* args[]) {
                 handleInput(&e);
             }
         }
-
         Uint32 ticks = SDL_GetTicks();
         updateGame();
         render();
@@ -317,7 +319,6 @@ int main(int argc, char* args[]) {
             SDL_Delay(sleep_time);
         }
     }
-
     closeSDL();
 
     return 0;
