@@ -1,0 +1,15 @@
+# depslib dependency file v1.0
+1700227009 source:/home/j47/Documents/C/Space/Space/main.c
+	<SDL2/SDL.h>
+	<SDL2/SDL_image.h>
+	<SDL2/SDL_ttf.h>
+	<stdlib.h>
+	<time.h>
+
+1700152477 source:/home/j47/Documents/C/Space/Space/extra.c
+	<SDL2/SDL.h>
+	<SDL2/SDL_image.h>
+	<SDL2/SDL_ttf.h>
+	<stdlib.h>
+	<time.h>
+
