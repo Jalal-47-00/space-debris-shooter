@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define SCREEN_WIDTH 700
-#define SCREEN_HEIGHT 750
+#define SCREEN_WIDTH 800
+#define SCREEN_HEIGHT 600
 #define SPACESHIP_WIDTH 60
 #define SPACESHIP_HEIGHT 60
 #define BULLET_WIDTH 20
@@ -14,16 +14,17 @@
 #define SPACESHIP_SPEED 5
 #define MAX_BULLETS 10
 #define MAX_DEBRIS 15
+#define MAX_STARS 40
 #define TICK_INTERVAL 16
 
 SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
 SDL_Rect bullets[MAX_BULLETS];
 SDL_Rect debris[MAX_DEBRIS];
-TTF_Font* font = NULL;
-int score = 0;
-int gameOver = 0;
+SDL_Rect stars[MAX_STARS];
+int starSpeeds[MAX_STARS];
 int bulletActive[MAX_BULLETS] = {0};
+TTF_Font* font = NULL;
 SDL_Texture* spaceshipTexture = NULL;
 SDL_Texture* debrisTexture = NULL;
 SDL_Texture* bulletTexture = NULL;
@@ -31,6 +32,8 @@ SDL_Texture* backgroundTexture = NULL;
 SDL_Rect spaceshipRect;
 int spaceshipVelocityX = 0;
 int spaceshipVelocityY = 0;
+int score = 0;
+int gameOver = 0;
 Uint32 next_game_tick = 0;
 
 int initSDL()
@@ -71,7 +74,7 @@ int initSDL()
 
 void loadAssets()
 {
-    SDL_Surface* backgroundSurface = IMG_Load("two.png");
+    SDL_Surface* backgroundSurface = IMG_Load("one.png");
     if (backgroundSurface == NULL) {
         printf("Failed to load background image: %s\n", IMG_GetError());
         return;
@@ -126,6 +129,14 @@ void loadAssets()
         debris[i].h = debrisSize;
         debris[i].x = rand() % (SCREEN_WIDTH - debris[i].w);
         debris[i].y = -rand() % SCREEN_HEIGHT;
+    }
+
+    for (int i = 0; i < MAX_STARS; ++i) {
+        stars[i].w = 2;
+        stars[i].h = 2;
+        stars[i].x = rand() % SCREEN_WIDTH;
+        stars[i].y = rand() % SCREEN_HEIGHT;
+        starSpeeds[i] = rand() % 3 + 1;
     }
 
     font = TTF_OpenFont("game_over.ttf", 48);
@@ -229,11 +240,27 @@ void updateGame()
             debris[i].y = -rand() % SCREEN_HEIGHT;
         }
     }
+
+    for (int i = 0; i < MAX_STARS; ++i) {
+        stars[i].y += starSpeeds[i];
+
+        if (stars[i].y > SCREEN_HEIGHT) {
+            stars[i].y = 0;
+            stars[i].x = rand() % SCREEN_WIDTH;
+            starSpeeds[i] = rand() % 3 + 1;
+        }
+    }
 }
 
 void render()
 {
     SDL_RenderCopy(renderer, backgroundTexture, NULL, NULL);
+
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    for (int i = 0; i < MAX_STARS; ++i) {
+        SDL_RenderDrawRect(renderer, &stars[i]);
+    }
+
     SDL_RenderCopy(renderer, spaceshipTexture, NULL, &spaceshipRect);
 
     for (int i = 0; i < MAX_BULLETS; ++i) {
