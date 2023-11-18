@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 600
+#define SCREEN_WIDTH 750
+#define SCREEN_HEIGHT 800
 #define SPACESHIP_WIDTH 60
 #define SPACESHIP_HEIGHT 60
 #define BULLET_WIDTH 20
@@ -13,9 +13,10 @@
 #define BULLET_SPEED 5
 #define SPACESHIP_SPEED 5
 #define MAX_BULLETS 10
-#define MAX_DEBRIS 15
-#define MAX_STARS 40
+#define MAX_DEBRIS 20
+#define MAX_STARS 50
 #define TICK_INTERVAL 16
+#define RELOAD_TIME 2000
 
 SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
@@ -35,6 +36,9 @@ int spaceshipVelocityY = 0;
 int score = 0;
 int gameOver = 0;
 Uint32 next_game_tick = 0;
+
+int bulletsFired = 0;
+Uint32 lastBulletTime = 0;
 
 int initSDL()
 {
@@ -169,12 +173,22 @@ void handleInput(SDL_Event* event)
     if (!gameOver && event->type == SDL_KEYDOWN && event->key.repeat == 0) {
         switch (event->key.keysym.sym) {
             case SDLK_SPACE:
-                for (int i = 0; i < MAX_BULLETS; ++i) {
-                    if (!bulletActive[i]) {
-                        bullets[i].x = spaceshipRect.x + (SPACESHIP_WIDTH - BULLET_WIDTH) / 2;
-                        bullets[i].y = spaceshipRect.y - BULLET_HEIGHT;
-                        bulletActive[i] = 1;
-                        break;
+                Uint32 currentTicks = SDL_GetTicks();
+                if (currentTicks - lastBulletTime > RELOAD_TIME) {
+                    for (int i = 0; i < MAX_BULLETS; ++i) {
+                        if (!bulletActive[i]) {
+                            bullets[i].x = spaceshipRect.x + (SPACESHIP_WIDTH - BULLET_WIDTH) / 2;
+                            bullets[i].y = spaceshipRect.y - BULLET_HEIGHT;
+                            bulletActive[i] = 1;
+                            bulletsFired++;
+
+                            if (bulletsFired >= 10) {
+                                lastBulletTime = currentTicks;
+                                bulletsFired = 0;
+                            }
+
+                            break;
+                        }
                     }
                 }
                 break;
@@ -291,7 +305,7 @@ void render()
         SDL_Rect bgRect = {0, SCREEN_HEIGHT / 2 - 50, SCREEN_WIDTH, 60};
         SDL_RenderFillRect(renderer, &bgRect);
 
-        SDL_Color gameOverColor = {255, 0, 0, 255};
+        SDL_Color gameOverColor = {255, 26, 140, 255};
         char gameOverText[50];
         sprintf(gameOverText, "GAME OVER");
         SDL_Surface* gameOverSurface = TTF_RenderText_Solid(font, gameOverText, gameOverColor);
