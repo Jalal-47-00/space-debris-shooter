@@ -1,6 +1,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_mixer.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -17,6 +18,8 @@
 #define MAX_STARS 50
 #define TICK_INTERVAL 16
 #define RELOAD_TIME 2000
+#define WELCOME_SCREEN_DURATION 2000
+
 
 SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
@@ -30,15 +33,20 @@ SDL_Texture* spaceshipTexture = NULL;
 SDL_Texture* debrisTexture = NULL;
 SDL_Texture* bulletTexture = NULL;
 SDL_Texture* backgroundTexture = NULL;
+SDL_Texture* welcomeTexture = NULL;
+SDL_Texture* welcomeBackgroundTexture = NULL;
 SDL_Rect spaceshipRect;
 int spaceshipVelocityX = 0;
 int spaceshipVelocityY = 0;
 int score = 0;
 int gameOver = 0;
 Uint32 next_game_tick = 0;
-
 int bulletsFired = 0;
 Uint32 lastBulletTime = 0;
+
+Mix_Chunk* shootSound = NULL;
+Mix_Chunk* hitSound = NULL;
+Mix_Chunk* gameOverSound = NULL;
 
 int initSDL()
 {
@@ -72,6 +80,12 @@ int initSDL()
     }
 
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+
+    // Initialize SDL_mixer
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
+        printf("SDL_mixer initialization failed: %s\n", Mix_GetError());
+        return -1;
+    }
 
     return 0;
 }
@@ -148,121 +162,20 @@ void loadAssets()
         printf("Failed to load font: %s\n", TTF_GetError());
         return;
     }
-}
 
-void handleInput(SDL_Event* event)
-{
-    const Uint8* currentKeyStates = SDL_GetKeyboardState(NULL);
-
-    spaceshipVelocityX = 0;
-    spaceshipVelocityY = 0;
-
-    if (currentKeyStates[SDL_SCANCODE_LEFT] || currentKeyStates[SDL_SCANCODE_A]) {
-        spaceshipVelocityX = -SPACESHIP_SPEED;
-    }
-    if (currentKeyStates[SDL_SCANCODE_RIGHT] || currentKeyStates[SDL_SCANCODE_D]) {
-        spaceshipVelocityX = SPACESHIP_SPEED;
-    }
-    if (currentKeyStates[SDL_SCANCODE_UP] || currentKeyStates[SDL_SCANCODE_W]) {
-        spaceshipVelocityY = -SPACESHIP_SPEED;
-    }
-    if (currentKeyStates[SDL_SCANCODE_DOWN] || currentKeyStates[SDL_SCANCODE_S]) {
-        spaceshipVelocityY = SPACESHIP_SPEED;
+    shootSound = Mix_LoadWAV("shoot.wav");
+    if (shootSound == NULL) {
+        printf("Failed to load shoot sound effect: %s\n", Mix_GetError());
     }
 
-    if (!gameOver && event->type == SDL_KEYDOWN && event->key.repeat == 0) {
-        switch (event->key.keysym.sym) {
-            case SDLK_SPACE:
-                Uint32 currentTicks = SDL_GetTicks();
-                if (currentTicks - lastBulletTime > RELOAD_TIME) {
-                    for (int i = 0; i < MAX_BULLETS; ++i) {
-                        if (!bulletActive[i]) {
-                            bullets[i].x = spaceshipRect.x + (SPACESHIP_WIDTH - BULLET_WIDTH) / 2;
-                            bullets[i].y = spaceshipRect.y - BULLET_HEIGHT;
-                            bulletActive[i] = 1;
-                            bulletsFired++;
-
-                            if (bulletsFired >= 10) {
-                                lastBulletTime = currentTicks;
-                                bulletsFired = 0;
-                            }
-
-                            break;
-                        }
-                    }
-                }
-                break;
-        }
-    }
-}
-
-void updateGame()
-{
-    if (gameOver) {
-        return;
+    hitSound = Mix_LoadWAV("destroyed.wav");
+    if (hitSound == NULL) {
+        printf("Failed to load hit sound effect: %s\n", Mix_GetError());
     }
 
-    spaceshipRect.x += spaceshipVelocityX;
-    spaceshipRect.y += spaceshipVelocityY;
-
-    if (spaceshipRect.x < 0) {
-        spaceshipRect.x = 0;
-    }
-    if (spaceshipRect.x > SCREEN_WIDTH - SPACESHIP_WIDTH) {
-        spaceshipRect.x = SCREEN_WIDTH - SPACESHIP_WIDTH;
-    }
-    if (spaceshipRect.y < 0) {
-        spaceshipRect.y = 0;
-    }
-    if (spaceshipRect.y > SCREEN_HEIGHT - SPACESHIP_HEIGHT) {
-        spaceshipRect.y = SCREEN_HEIGHT - SPACESHIP_HEIGHT;
-    }
-
-    for (int i = 0; i < MAX_BULLETS; ++i) {
-        if (bulletActive[i]) {
-            bullets[i].y -= BULLET_SPEED;
-
-            for (int j = 0; j < MAX_DEBRIS; ++j) {
-                if (debris[j].y <= SCREEN_HEIGHT && SDL_HasIntersection(&bullets[i], &debris[j])) {
-                    bulletActive[i] = 0;
-                    debris[j].w = rand() % 30 + 20;
-                    debris[j].h = debris[j].w;
-                    debris[j].x = rand() % (SCREEN_WIDTH - debris[j].w);
-                    debris[j].y = -rand() % SCREEN_HEIGHT;
-
-                    score++;
-                }
-            }
-
-            if (bullets[i].y < 0) {
-                bulletActive[i] = 0;
-            }
-        }
-    }
-
-    for (int i = 0; i < MAX_DEBRIS; ++i) {
-        if (debris[i].y <= SCREEN_HEIGHT) {
-            debris[i].y += 2;
-
-            if (SDL_HasIntersection(&spaceshipRect, &debris[i])) {
-                gameOver = 1;
-            }
-        } else {
-            debris[i].w = rand() % 30 + 20;
-            debris[i].h = debris[i].w;
-            debris[i].x = rand() % (SCREEN_WIDTH - debris[i].w);
-            debris[i].y = -rand() % SCREEN_HEIGHT;
-        }
-    }
-
-    for (int i = 0; i < MAX_STARS; ++i) {
-        stars[i].y += starSpeeds[i];
-
-        if (stars[i].y > SCREEN_HEIGHT) {
-            stars[i].y = 0;
-            stars[i].x = rand() % SCREEN_WIDTH;
-            starSpeeds[i] = rand() % 3 + 1;
-        }
+    gameOverSound = Mix_LoadWAV("game_over.wav");
+    if (gameOverSound == NULL) {
+        printf("Failed to load game over sound effect: %s\n", Mix_GetError());
     }
 }
 
@@ -315,12 +228,174 @@ void render()
         SDL_Rect gameOverRect = {(SCREEN_WIDTH - 200) / 2, SCREEN_HEIGHT / 2 - 55, 200, 60};
         SDL_RenderCopy(renderer, gameOverTexture, NULL, &gameOverRect);
         SDL_DestroyTexture(gameOverTexture);
+
+        if (gameOverSound != NULL) {
+            Mix_PlayChannel(-1, gameOverSound, 0);
+        }
     }
     SDL_RenderPresent(renderer);
 }
 
+void handleInput(SDL_Event* event)
+{
+    const Uint8* currentKeyStates = SDL_GetKeyboardState(NULL);
+
+    spaceshipVelocityX = 0;
+    spaceshipVelocityY = 0;
+
+    if (currentKeyStates[SDL_SCANCODE_LEFT] || currentKeyStates[SDL_SCANCODE_A]) {
+        spaceshipVelocityX = -SPACESHIP_SPEED;
+    }
+    if (currentKeyStates[SDL_SCANCODE_RIGHT] || currentKeyStates[SDL_SCANCODE_D]) {
+        spaceshipVelocityX = SPACESHIP_SPEED;
+    }
+    if (currentKeyStates[SDL_SCANCODE_UP] || currentKeyStates[SDL_SCANCODE_W]) {
+        spaceshipVelocityY = -SPACESHIP_SPEED;
+    }
+    if (currentKeyStates[SDL_SCANCODE_DOWN] || currentKeyStates[SDL_SCANCODE_S]) {
+        spaceshipVelocityY = SPACESHIP_SPEED;
+    }
+
+    if (!gameOver && event->type == SDL_KEYDOWN && event->key.repeat == 0) {
+        switch (event->key.keysym.sym) {
+            case SDLK_SPACE:
+                Uint32 currentTicks = SDL_GetTicks();
+                if (currentTicks - lastBulletTime > RELOAD_TIME) {
+                    for (int i = 0; i < MAX_BULLETS; ++i) {
+                        if (!bulletActive[i]) {
+                            bullets[i].x = spaceshipRect.x + (SPACESHIP_WIDTH - BULLET_WIDTH) / 2;
+                            bullets[i].y = spaceshipRect.y - BULLET_HEIGHT;
+                            bulletActive[i] = 1;
+                            bulletsFired++;
+
+                            if (bulletsFired >= 10) {
+                                lastBulletTime = currentTicks;
+                                bulletsFired = 0;
+                            }
+
+                            if (shootSound != NULL) {
+                                Mix_PlayChannel(-1, shootSound, 0);
+                            }
+
+                            break;
+                        }
+                    }
+                }
+                break;
+        }
+    }
+}
+
+void updateGame()
+{
+    if (gameOver) {
+        return;
+    }
+
+    spaceshipRect.x += spaceshipVelocityX;
+    spaceshipRect.y += spaceshipVelocityY;
+
+    if (spaceshipRect.x < 0) {
+        spaceshipRect.x = 0;
+    }
+    if (spaceshipRect.x > SCREEN_WIDTH - SPACESHIP_WIDTH) {
+        spaceshipRect.x = SCREEN_WIDTH - SPACESHIP_WIDTH;
+    }
+    if (spaceshipRect.y < 0) {
+        spaceshipRect.y = 0;
+    }
+    if (spaceshipRect.y > SCREEN_HEIGHT - SPACESHIP_HEIGHT) {
+        spaceshipRect.y = SCREEN_HEIGHT - SPACESHIP_HEIGHT;
+    }
+
+    for (int i = 0; i < MAX_BULLETS; ++i) {
+        if (bulletActive[i]) {
+            bullets[i].y -= BULLET_SPEED;
+
+            for (int j = 0; j < MAX_DEBRIS; ++j) {
+                if (debris[j].y <= SCREEN_HEIGHT && SDL_HasIntersection(&bullets[i], &debris[j])) {
+                    bulletActive[i] = 0;
+                    debris[j].w = rand() % 30 + 20;
+                    debris[j].h = debris[j].w;
+                    debris[j].x = rand() % (SCREEN_WIDTH - debris[j].w);
+                    debris[j].y = -rand() % SCREEN_HEIGHT;
+
+                    score++;
+
+                    if (hitSound != NULL) {
+                        Mix_PlayChannel(-1, hitSound, 0);
+                    }
+                }
+            }
+
+            if (bullets[i].y < 0) {
+                bulletActive[i] = 0;
+            }
+        }
+    }
+
+    for (int i = 0; i < MAX_DEBRIS; ++i) {
+        if (debris[i].y <= SCREEN_HEIGHT) {
+            debris[i].y += 2;
+
+            if (SDL_HasIntersection(&spaceshipRect, &debris[i])) {
+                gameOver = 1;
+            }
+        } else {
+            debris[i].w = rand() % 30 + 20;
+            debris[i].h = debris[i].w;
+            debris[i].x = rand() % (SCREEN_WIDTH - debris[i].w);
+            debris[i].y = -rand() % SCREEN_HEIGHT;
+        }
+    }
+
+    for (int i = 0; i < MAX_STARS; ++i) {
+        stars[i].y += starSpeeds[i];
+
+        if (stars[i].y > SCREEN_HEIGHT) {
+            stars[i].y = 0;
+            stars[i].x = rand() % SCREEN_WIDTH;
+            starSpeeds[i] = rand() % 3 + 1;
+        }
+    }
+}
+
+void showWelcomeScreen()
+{
+    SDL_Color welcomeColor = {255, 255, 255, 255};
+    char welcomeText[50];
+    sprintf(welcomeText, "Don't fly too close!");
+
+    SDL_Surface* welcomeBackgroundSurface = IMG_Load("bg.png");
+    welcomeBackgroundTexture = SDL_CreateTextureFromSurface(renderer, welcomeBackgroundSurface);
+    SDL_FreeSurface(welcomeBackgroundSurface);
+
+    SDL_Rect welcomeBackgroundRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
+    SDL_RenderCopy(renderer, welcomeBackgroundTexture, NULL, &welcomeBackgroundRect);
+
+    SDL_Surface* welcomeSurface = TTF_RenderText_Solid(font, welcomeText, welcomeColor);
+    SDL_Texture* welcomeTexture = SDL_CreateTextureFromSurface(renderer, welcomeSurface);
+    SDL_FreeSurface(welcomeSurface);
+
+    SDL_Rect welcomeRect = {(SCREEN_WIDTH - 300) / 2, SCREEN_HEIGHT / 2 - 25, 300, 50};
+    SDL_RenderCopy(renderer, welcomeTexture, NULL, &welcomeRect);
+    SDL_RenderPresent(renderer);
+
+    SDL_Delay(WELCOME_SCREEN_DURATION);
+
+    SDL_RenderClear(renderer);
+    SDL_RenderPresent(renderer);
+
+    SDL_DestroyTexture(welcomeBackgroundTexture);
+    SDL_DestroyTexture(welcomeTexture);
+}
+
 void closeSDL()
 {
+    Mix_FreeChunk(shootSound);
+    Mix_FreeChunk(hitSound);
+    Mix_FreeChunk(gameOverSound);
+
     TTF_CloseFont(font);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
@@ -330,6 +405,7 @@ void closeSDL()
     SDL_DestroyTexture(bulletTexture);
     TTF_Quit();
     IMG_Quit();
+    Mix_Quit();
     SDL_Quit();
 }
 
@@ -346,7 +422,7 @@ int main(int argc, char* args[])
     }
 
     loadAssets();
-
+    showWelcomeScreen();
     int quit = 0;
     SDL_Event e;
 
@@ -358,6 +434,7 @@ int main(int argc, char* args[])
                 handleInput(&e);
             }
         }
+
         Uint32 ticks = SDL_GetTicks();
         updateGame();
         render();
@@ -368,6 +445,7 @@ int main(int argc, char* args[])
             SDL_Delay(sleep_time);
         }
     }
+
     closeSDL();
 
     return 0;
